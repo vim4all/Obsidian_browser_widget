@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Obsidian Daily Widget</title>
+<link rel="stylesheet" href="shared/style.css" />
+<style>
+  body {
+    width: 300px;
+    max-height: 480px;
+    overflow-y: auto;
+    background: var(--bg-bottom);
+  }
+  .card {
+    border-radius: 0;
+    box-shadow: none;
+  }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="card-header">
+      <span class="card-title">Day planner</span>
+      <a class="icon-link" id="optionsLink" href="options.html" target="_blank" title="Settings">⚙</a>
+    </div>
+
+    <div class="placeholder" id="placeholder">Loading…</div>
+    <button class="connect-button" id="connectButton" hidden>Connect vault folder</button>
+    <div class="tasks" id="tasks"></div>
+    <div class="more" id="more" hidden></div>
+    <div class="heatmap" id="heatmap"></div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

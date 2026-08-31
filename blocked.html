@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Blocked — Obsidian Daily Widget</title>
+<link rel="stylesheet" href="shared/style.css" />
+<style>
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-bottom);
+    padding: 24px;
+  }
+  .card {
+    width: 460px;
+    max-width: 100%;
+    padding: 22px 24px;
+  }
+  .block-title {
+    font-size: 20px;
+    font-weight: 650;
+    color: var(--text);
+    margin: 0 0 6px;
+  }
+  .block-reason {
+    font-size: 14px;
+    color: var(--subtext);
+    margin: 0 0 16px;
+    line-height: 1.45;
+  }
+  .block-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--subtext);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 8px;
+  }
+  .block-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--divider);
+  }
+  .connect-button.secondary {
+    background: transparent;
+    color: var(--subtext);
+    border: 1px solid var(--divider);
+  }
+  .connect-button.secondary:hover {
+    color: var(--text);
+  }
+  .snooze-note {
+    font-size: 11px;
+    color: var(--subtext);
+    margin: 10px 0 0;
+  }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="card-header">
+      <span class="card-title">Day planner</span>
+      <a class="icon-link" id="optionsLink" href="options.html" title="Settings">⚙</a>
+    </div>
+
+    <h1 class="block-title" id="title">Blocked</h1>
+    <p class="block-reason" id="reason">Checking why…</p>
+
+    <p class="block-section-label" id="tasksLabel" hidden>Overdue</p>
+    <div class="tasks" id="tasks"></div>
+
+    <div class="block-actions">
+      <button class="connect-button" id="openNoteButton">Open today's note</button>
+      <button class="connect-button secondary" id="recheckButton">I fixed it — re-check</button>
+      <button class="connect-button secondary" id="snoozeButton" hidden>Snooze</button>
+    </div>
+    <p class="snooze-note" id="snoozeNote" hidden></p>
+  </div>
+
+  <script type="module" src="blocked.js"></script>
+</body>
+</html>

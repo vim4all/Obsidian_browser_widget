@@ -1,0 +1,154 @@
+:root {
+  --bg: #f2f2f7;
+  --panel: #ffffff;
+  --text: #000000;
+  --subtext: #6e6e73;
+  --divider: #e5e5ea;
+  --accent: #007aff;
+  --danger: #ff453a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e;
+    --panel: #2c2c2e;
+    --text: #ffffff;
+    --subtext: #9b9b9f;
+    --divider: #3a3a3c;
+    --accent: #0a84ff;
+    --danger: #ff6961;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 24px 16px 60px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  max-width: 480px;
+  margin-inline: auto;
+}
+
+h1 {
+  font-size: 18px;
+  margin: 0 0 16px;
+}
+
+h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--subtext);
+  margin: 0 0 12px;
+}
+
+h3 {
+  font-size: 12px;
+  color: var(--subtext);
+  margin: 16px 0 8px;
+  border-top: 1px solid var(--divider);
+  padding-top: 12px;
+}
+
+.panel {
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: var(--subtext);
+  margin-bottom: 10px;
+}
+
+label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+label.checkbox input {
+  margin: 0;
+}
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--divider);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+textarea {
+  font-family: ui-monospace, monospace;
+  resize: vertical;
+}
+
+.hour-range {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.hour-range input {
+  margin-top: 0;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--subtext);
+}
+
+.status {
+  font-size: 12px;
+  color: var(--subtext);
+}
+
+.message {
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+button {
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  background: var(--accent);
+  border: none;
+  border-radius: 7px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--divider);
+}

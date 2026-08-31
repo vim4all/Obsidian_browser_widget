@@ -1,0 +1,205 @@
+/* Shared by newtab.html and popup.html. Adapted from
+   ../obsidian_windows_widget/renderer/style.css — same palette, same task
+   row / heatmap markup, minus the transparent-window/drag-handle rules that
+   only made sense for an always-on-top overlay. A normal browser page has
+   an opaque background and doesn't need a --card-alpha custom property. */
+
+:root {
+  --bg-top: #ffffff;
+  --bg-bottom: #f2f2f7;
+  --text: #000000;
+  --subtext: #6e6e73;
+  --divider: #e5e5ea;
+  --accent: #007aff;
+  --overdue-color: #ff453a; /* overridden at runtime from config.overdueColor */
+  --card-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-top: #1c1c1e;
+    --bg-bottom: #2c2c2e;
+    --text: #ffffff;
+    --subtext: #9b9b9f;
+    --divider: #3a3a3c;
+    --accent: #0a84ff;
+    --card-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.card {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(to bottom, var(--bg-top), var(--bg-bottom));
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--subtext);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.icon-link {
+  color: var(--subtext);
+  text-decoration: none;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px;
+}
+
+.icon-link:hover {
+  color: var(--accent);
+}
+
+.placeholder {
+  font-size: 12px;
+  color: var(--subtext);
+  padding: 4px 0;
+}
+
+.connect-button {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  background: var(--accent);
+  border: none;
+  border-radius: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.connect-button:hover {
+  opacity: 0.9;
+}
+
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 17px;
+}
+
+.task-dot {
+  width: 13px;
+  height: 13px;
+  min-width: 13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--divider);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: transparent;
+  margin-top: 2px;
+}
+
+.task-row.done .task-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.task-time {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+.task-text {
+  font-size: 13px;
+  color: var(--text);
+  overflow-wrap: break-word;
+  white-space: normal;
+  flex: 1;
+}
+
+.task-row.done .task-text {
+  color: var(--subtext);
+  text-decoration: line-through;
+}
+
+/* config.overdueTaskStyle: "red" gets these two rules alone; "flash" adds
+   .overdue-flash on top. Never applies to .done rows — isTaskOverdue() in
+   vault.js already excludes completed tasks. */
+.task-row.overdue .task-dot {
+  border-color: var(--overdue-color);
+}
+
+.task-row.overdue .task-time,
+.task-row.overdue .task-text {
+  color: var(--overdue-color);
+}
+
+@keyframes overdue-flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.task-row.overdue-flash {
+  animation: overdue-flash 1s ease-in-out infinite;
+}
+
+.tag-dot {
+  width: 6px;
+  height: 6px;
+  min-width: 6px;
+  border-radius: 50%;
+  margin-top: 4px;
+}
+
+.more {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--subtext);
+  margin-top: 4px;
+}
+
+.heatmap {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.heatmap-square {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  background: var(--divider);
+}

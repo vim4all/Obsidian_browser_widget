@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Obsidian Daily Widget",
+  "version": "1.0.0",
+  "description": "Shows today's Obsidian daily note tasks and a 7-day habit heatmap on New Tab and in the toolbar popup, with the same focus/planning/undone-tasks nag notifications as the iOS and Windows versions.",
+  "minimum_chrome_version": "116",
+
+  "permissions": ["storage", "alarms", "notifications", "offscreen", "declarativeNetRequest"],
+
+  "_comment_host_permissions": "Required by declarativeNetRequest's redirect action, which (unlike a plain block) needs host access to the request being redirected. It has to be <all_urls> because the blocked-site list is user-editable at runtime and so can't be enumerated here. Nothing reads page content: there are no content scripts and no fetch to any of these hosts.",
+  "host_permissions": ["<all_urls>"],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
+  },
+
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+
+  "options_page": "options.html",
+
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
+}

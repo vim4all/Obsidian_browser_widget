@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Obsidian Daily Widget — background</title>
+</head>
+<body>
+<!-- Not user-visible: chrome.offscreen renders this off-screen. It exists
+     only to give the service worker a document context, since File System
+     Access API calls (and, incidentally, chrome.notifications.onClicked's
+     handler — see offscreen.js) need one. -->
+<script type="module" src="offscreen.js"></script>
+</body>
+</html>

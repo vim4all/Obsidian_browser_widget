@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Obsidian Daily Widget — Settings</title>
+<link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <h1>Obsidian Daily Widget</h1>
+
+  <section class="panel" id="vaultSection">
+    <h2>Vault</h2>
+    <p class="hint">The folder that directly contains your daily-notes folder (e.g. <code>00_Daily</code>).</p>
+    <p id="vaultStatus" class="status">Checking…</p>
+    <div class="row">
+      <button id="connectButton">Connect / change vault folder</button>
+      <button id="disconnectButton" class="secondary">Disconnect</button>
+    </div>
+    <p id="vaultMessage" class="message" hidden></p>
+  </section>
+
+  <form id="configForm">
+    <section class="panel">
+      <h2>Daily note</h2>
+      <label>Daily notes folder<input type="text" name="dailyFolder" /></label>
+      <label>Section heading to parse<input type="text" name="headingPattern" /></label>
+      <label>Rest-day frontmatter key<input type="text" name="restDayFrontmatterKey" /></label>
+      <label>Vault name (as shown inside Obsidian, for tap-to-open links)<input type="text" name="obsidianVaultName" /></label>
+    </section>
+
+    <section class="panel">
+      <h2>Overdue tasks</h2>
+      <label>Style
+        <select name="overdueTaskStyle">
+          <option value="none">None</option>
+          <option value="red">Red</option>
+          <option value="flash">Red + pulsing</option>
+        </select>
+      </label>
+      <label>Color<input type="text" name="overdueColor" placeholder="#ff453a" /></label>
+    </section>
+
+    <section class="panel">
+      <h2>Distraction guard</h2>
+      <p class="hint">
+        Blocks the sites below while today's plan needs attention. Navigations are redirected to a
+        page explaining why, with a link back to today's note. Never blocks when the vault is
+        disconnected or unreadable — if something breaks, you get your sites back, not a lockout.
+      </p>
+      <label class="checkbox"><input type="checkbox" name="distractionGuardEnabled" /> Enabled</label>
+
+      <h3>Block when…</h3>
+      <label class="checkbox"><input type="checkbox" name="blockOnOverdueTask" /> A task's time block has ended and it's still unchecked</label>
+      <label class="checkbox"><input type="checkbox" name="blockOnMissingDailyNote" /> Today has no daily note at all</label>
+      <label class="checkbox"><input type="checkbox" name="guardRespectsRestDay" /> …but never on a rest day</label>
+
+      <h3>Sites</h3>
+      <label>One domain per line. Subdomains are included automatically, so <code>youtube.com</code> also covers <code>m.youtube.com</code>.
+        <textarea name="blockedSitesText" rows="8" spellcheck="false"></textarea>
+      </label>
+
+      <h3>Escape hatch</h3>
+      <label>Snooze duration (minutes) — the block page's snooze button; 0 hides it
+        <input type="number" name="guardSnoozeMinutes" min="0" />
+      </label>
+    </section>
+
+    <section class="panel">
+      <h2>Notifications</h2>
+      <label class="checkbox"><input type="checkbox" name="notificationsEnabled" /> Enabled (master switch)</label>
+
+      <h3>Focus reminders</h3>
+      <label class="checkbox"><input type="checkbox" name="remindersEnabled" /> Enabled</label>
+      <label>Base interval (minutes)<input type="number" name="reminderIntervalMinutes" min="1" /></label>
+      <label>Active hours
+        <span class="hour-range">
+          <input type="number" name="workStartHour" min="0" max="23" />
+          –
+          <input type="number" name="workEndHour" min="0" max="23" />
+        </span>
+      </label>
+      <label>Active days (0=Sun … 6=Sat, comma-separated)<input type="text" name="workDays" placeholder="1,2,3,4,5" /></label>
+
+      <h3>Morning kickoff / evening summary</h3>
+      <label>Morning kickoff hour<input type="number" name="morningKickoffHour" min="0" max="23" /></label>
+      <label>Evening summary hour<input type="number" name="eveningSummaryHour" min="0" max="23" /></label>
+      <label>Catch-up tolerance (hours)<input type="number" name="catchUpWindowHours" min="0" /></label>
+
+      <h3>Planning nag (tomorrow has no plan yet)</h3>
+      <label>Start hour<input type="number" name="planningNagHour" min="0" max="23" /></label>
+      <label>Repeat every (minutes)<input type="number" name="planningNagIntervalMinutes" min="1" /></label>
+
+      <h3>Undone-tasks nag (today still has open tasks)</h3>
+      <label>Start hour<input type="number" name="undoneNagHour" min="0" max="23" /></label>
+      <label>Repeat every (minutes)<input type="number" name="undoneNagIntervalMinutes" min="1" /></label>
+
+      <h3>Time-block nudges</h3>
+      <label class="checkbox"><input type="checkbox" name="timeBlockNudgesEnabled" /> Enabled</label>
+      <label>Catch-up tolerance (minutes)<input type="number" name="timeBlockCatchUpMinutes" min="0" /></label>
+
+      <h3>Weekly review</h3>
+      <label>Day (0=Sun … 6=Sat)<input type="number" name="weeklyReviewDay" min="0" max="6" /></label>
+      <label>Hour<input type="number" name="weeklyReviewHour" min="0" max="23" /></label>
+    </section>
+
+    <section class="panel">
+      <h2>Misc</h2>
+      <label>Check interval (minutes) — how often the background tick reads the vault and evaluates nags
+        <input type="number" name="tickIntervalMinutes" min="1" />
+      </label>
+      <label>Tag colors (JSON: <code>{"tagname": "#rrggbb", ...}</code>)
+        <textarea name="tagColorsJson" rows="4"></textarea>
+      </label>
+      <label>Default tag color<input type="text" name="defaultTagColor" placeholder="#8e8e93" /></label>
+    </section>
+
+    <div class="row">
+      <button type="submit" id="saveButton">Save</button>
+      <span id="saveStatus" class="status"></span>
+    </div>
+  </form>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

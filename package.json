@@ -1,0 +1,12 @@
+{
+  "name": "obsidian-daily-widget-vivaldi",
+  "version": "1.0.0",
+  "description": "Vivaldi (Manifest V3) extension that mirrors an Obsidian daily note's Day planner checklist on New Tab and in the toolbar popup, with the same reminder/nag system as the iOS and Windows versions.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "icons": "node scripts/generate-icons.js"
+  },
+  "author": "",
+  "license": "UNLICENSED"
+}
