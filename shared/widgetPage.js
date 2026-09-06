@@ -9,6 +9,7 @@ import { buildWidgetData } from "../src/widgetData.js"
 import { render } from "./render.js"
 import { syncGuardFromNote } from "../src/distractionGuard.js"
 import { connectVault, reconnectVault } from "./vaultConnect.js"
+import { captureTask } from "../src/vault.js"
 
 export function initWidgetPage(els, connectButton, maxVisibleTasks) {
   let currentConfig = null
@@ -16,6 +17,8 @@ export function initWidgetPage(els, connectButton, maxVisibleTasks) {
   async function refresh() {
     currentConfig = await loadConfig()
     const { status, handle } = await checkVaultAccess()
+    els.quickAdd.hidden = status !== "granted"
+    els.quickAddStatus.hidden = true
 
     if (status === "granted") {
       connectButton.hidden = true
@@ -29,7 +32,7 @@ export function initWidgetPage(els, connectButton, maxVisibleTasks) {
       // (the read failed outright), leaving that call to the tick's own
       // fail-open path rather than guessing here.
       if (data.noteExists !== null) {
-        await syncGuardFromNote(currentConfig, data.noteExists, data.tasks, data.isRestDayToday)
+        await syncGuardFromNote(currentConfig, data.noteExists, data.tasks, data.isRestDayToday, data.yesterdayStatus)
       }
       return
     }
@@ -40,6 +43,38 @@ export function initWidgetPage(els, connectButton, maxVisibleTasks) {
     connectButton.dataset.pending = "false"
     render(els, { vaultConfigured: false }, maxVisibleTasks)
   }
+
+  // Quick-capture: appends a task to today's note without leaving this page.
+  // Re-checks vault access at submit time rather than trusting the last
+  // render's status — per src/vaultAccess.js's own rule, permission can
+  // lapse between renders and every write site has to decide fresh.
+  els.quickAdd.addEventListener("submit", async (e) => {
+    e.preventDefault()
+    const text = els.quickAddInput.value.trim()
+    if (!text) return
+
+    els.quickAddButton.disabled = true
+    els.quickAddStatus.hidden = true
+    try {
+      const { status, handle } = await checkVaultAccess()
+      if (status !== "granted") throw new Error("Reconnect your vault to add tasks.")
+      const result = await captureTask(handle, currentConfig, text)
+      if (!result.ok) {
+        throw new Error(
+          result.reason === "no-note"
+            ? "Today's note doesn't exist yet — create it in Obsidian first."
+            : `Today's note has no "${currentConfig.headingPattern}" section yet.`
+        )
+      }
+      els.quickAddInput.value = ""
+      await refresh()
+    } catch (err) {
+      els.quickAddStatus.hidden = false
+      els.quickAddStatus.textContent = err.message || String(err)
+    } finally {
+      els.quickAddButton.disabled = false
+    }
+  })
 
   connectButton.addEventListener("click", async () => {
     if (connectButton.dataset.pending === "true") return

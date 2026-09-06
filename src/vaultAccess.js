@@ -74,18 +74,27 @@ export async function clearVaultHandle() {
   await withStore("readwrite", (store) => store.delete(HANDLE_KEY))
 }
 
+// "readwrite" (not "read") because quick-capture (see shared/widgetPage.js)
+// appends a task line to today's note. Every other read path in this repo
+// only ever needs read access, but the File System Access API only offers
+// one permission grant per handle, not one per operation, so the vault
+// connection has to be provisioned for the most demanding thing anything in
+// this extension does with it. Existing users who granted "read" before this
+// changed will see status flip to "prompt" once, and need to reconnect —
+// same UI path as a permission lapsing after a browser restart.
+//
 // Requires a user gesture (a click) and a visible window — call this only
 // from a click handler in newtab.js / popup.js / options.js. It cannot run
 // in the offscreen document or the background service worker, neither of
 // which can show an OS file picker.
 export async function pickVaultDirectory() {
-  const handle = await window.showDirectoryPicker({ id: "obsidian-vault", mode: "read" })
+  const handle = await window.showDirectoryPicker({ id: "obsidian-vault", mode: "readwrite" })
   await saveVaultHandle(handle)
   return handle
 }
 
 // Returns { status, handle }, where status is one of:
-//   "granted"  — handle is usable, safe to read from immediately
+//   "granted"  — handle is usable, safe to read/write from immediately
 //   "prompt"   — a handle exists but needs requestVaultAccess() (user gesture) to re-confirm
 //   "denied"   — the user explicitly denied access; needs a fresh pickVaultDirectory()
 //   "no-handle" — nothing has ever been picked, or the stored handle is unusable
@@ -100,7 +109,7 @@ export async function checkVaultAccess() {
   }
   if (!handle) return { status: "no-handle", handle: null }
   try {
-    const permission = await handle.queryPermission({ mode: "read" })
+    const permission = await handle.queryPermission({ mode: "readwrite" })
     return { status: permission, handle }
   } catch (e) {
     return { status: "no-handle", handle: null }
@@ -111,5 +120,5 @@ export async function checkVaultAccess() {
 // restriction as pickVaultDirectory(), and the same caller restriction (a
 // visible page, never the offscreen document or background worker).
 export async function requestVaultAccess(handle) {
-  return handle.requestPermission({ mode: "read" })
+  return handle.requestPermission({ mode: "readwrite" })
 }

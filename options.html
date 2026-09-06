@@ -43,16 +43,21 @@
     <section class="panel">
       <h2>Distraction guard</h2>
       <p class="hint">
-        Blocks the sites below while today's plan needs attention. Navigations are redirected to a
-        page explaining why, with a link back to today's note. Never blocks when the vault is
-        disconnected or unreadable — if something breaks, you get your sites back, not a lockout.
+        Blocks the sites below while today's plan needs attention. New navigations, and any matching
+        tabs already open, are redirected to a page explaining why, with a link back to the note that
+        needs attention. Never blocks when the vault is disconnected or unreadable — if something
+        breaks, you get your sites back, not a lockout.
       </p>
       <label class="checkbox"><input type="checkbox" name="distractionGuardEnabled" /> Enabled</label>
 
       <h3>Block when…</h3>
       <label class="checkbox"><input type="checkbox" name="blockOnOverdueTask" /> A task's time block has ended and it's still unchecked</label>
       <label class="checkbox"><input type="checkbox" name="blockOnMissingDailyNote" /> Today has no daily note at all</label>
+      <label class="checkbox"><input type="checkbox" name="blockOnIncompleteReview" /> Yesterday's note is missing, or its Win/Reflection sections are empty</label>
       <label class="checkbox"><input type="checkbox" name="guardRespectsRestDay" /> …but never on a rest day</label>
+
+      <label>Win field label (matches "**Win:** ...")<input type="text" name="winFieldLabel" /></label>
+      <label>Reflection field label (matches "**Reflection:** ...")<input type="text" name="reflectionFieldLabel" /></label>
 
       <h3>Sites</h3>
       <label>One domain per line. Subdomains are included automatically, so <code>youtube.com</code> also covers <code>m.youtube.com</code>.
@@ -62,6 +67,32 @@
       <h3>Escape hatch</h3>
       <label>Snooze duration (minutes) — the block page's snooze button; 0 hides it
         <input type="number" name="guardSnoozeMinutes" min="0" />
+      </label>
+    </section>
+
+    <section class="panel">
+      <h2>Deep-work guard</h2>
+      <p class="hint">
+        A stricter, separate guard: while a task tagged <code>#tdeep</code> has its own time block
+        running right now, block <em>every</em> site except the allowlist below, instead of just the
+        list above. Requires a non-empty allowlist to ever turn on — an empty one would mean
+        "block the entire web", so it just stays off instead. Shares the snooze button above.
+      </p>
+      <label class="checkbox"><input type="checkbox" name="deepWorkGuardEnabled" /> Enabled</label>
+      <label>One allowed domain per line — everything else is blocked while a #tdeep block is active
+        <textarea name="deepWorkAllowlistText" rows="6" spellcheck="false"></textarea>
+      </label>
+    </section>
+
+    <section class="panel">
+      <h2>Stranded tasks (New Tab / popup)</h2>
+      <p class="hint">
+        A read-only count of open tasks left behind in past daily notes, shown next to today's task
+        list. Not a nag — just a number, with an optional link to wherever you triage them.
+      </p>
+      <label>Look back this many days<input type="number" name="strandedLookbackDays" min="1" /></label>
+      <label>Triage note path (vault-relative, optional — e.g. "10_SelfDev/TASK_BASKET/t_UrgentTasks.md")
+        <input type="text" name="triageNotePath" placeholder="leave blank to hide the link" />
       </label>
     </section>
 
@@ -101,6 +132,20 @@
       <h3>Weekly review</h3>
       <label>Day (0=Sun … 6=Sat)<input type="number" name="weeklyReviewDay" min="0" max="6" /></label>
       <label>Hour<input type="number" name="weeklyReviewHour" min="0" max="23" /></label>
+
+      <h3>Plan review (folds into the weekly review notification above)</h3>
+      <p class="hint">
+        Reads one external note for two numbers it already computes for itself — how stale its
+        <code>reviewed:</code> date is, and how many project keys are <code>status: active</code> in
+        its <code>gantt:</code> frontmatter list. Skipped silently if the path is blank, unreadable,
+        or shaped differently than expected.
+      </p>
+      <label class="checkbox"><input type="checkbox" name="planReviewEnabled" /> Enabled</label>
+      <label>Plan note path (vault-relative — e.g. "10_SelfDev/3_Long term planning.md")
+        <input type="text" name="planNotePath" />
+      </label>
+      <label>Flag as stale after this many days<input type="number" name="planReviewStaleDays" min="1" /></label>
+      <label>Flag when more than this many projects are active<input type="number" name="planMaxActiveProjects" min="1" /></label>
     </section>
 
     <section class="panel">

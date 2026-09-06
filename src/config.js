@@ -23,6 +23,9 @@ export const DEFAULTS = {
     tprj: "#ff9f0a",
     timp: "#ff453a",
     tprsn: "#30d158",
+    tuniv: "#64d2ff",
+    tdeep: "#5e5ce6",
+    trest: "#00c7be",
   },
   defaultTagColor: "#8e8e93",
 
@@ -84,8 +87,47 @@ export const DEFAULTS = {
   ],
   blockOnOverdueTask: true, // a task whose time block ended, still unchecked
   blockOnMissingDailyNote: true, // today has no YYYY-MM-DD.md at all
+  blockOnIncompleteReview: true, // yesterday has no note, or its Win/Reflection fields are empty
+  winFieldLabel: "Win", // matched as a bold inline field, e.g. "**Win:** did a thing" — not a heading
+  reflectionFieldLabel: "Reflection",
   guardRespectsRestDay: true, // day_off: true silences the guard like every other nag
   guardSnoozeMinutes: 5, // 0 disables the snooze button on the block page
+
+  // --- Deep-work guard ---
+  // A stricter sibling of the guard above: while a #tdeep-tagged task's own
+  // time block is the one currently running, block every site EXCEPT
+  // deepWorkAllowlist instead of just blockedSites. Implements the if-then
+  // plan from the vault's own ADHD toolkit ("off-task tab during deep work
+  // → close it") literally, keyed off the same tag the vault already uses
+  // for that concept.
+  //
+  // Default OFF and requires a non-empty allowlist to ever activate (see
+  // distractionGuard.js) — blocking the entire web by default the moment
+  // this ships would be exactly the kind of surprise this repo's fail-open
+  // philosophy exists to prevent.
+  deepWorkGuardEnabled: false,
+  deepWorkAllowlist: [],
+
+  // --- Stranded tasks (New Tab / popup glance) ---
+  // A lightweight, read-only count of open tasks left behind in past daily
+  // notes — the same thing this vault's own weekly triage calls "stranded".
+  // Deliberately not a new nag or ritual (the vault's own docs are explicit
+  // that a maintained ritual is a ritual that stops happening) — just a
+  // number next to the task list, computed on every widget open.
+  strandedLookbackDays: 14,
+  triageNotePath: "", // e.g. "10_SelfDev/TASK_BASKET/t_UrgentTasks.md" — empty hides the link
+
+  // --- Plan review (folded into the weekly review notification) ---
+  // Reads a single external note (config.planNotePath) for two numbers this
+  // vault's own Long term planning note already computes for itself inside
+  // Obsidian: how stale its `reviewed:` date is, and how many distinct
+  // project keys are `status: active`. Off by default, and silently skipped
+  // (not an error) if planNotePath is unset, unreadable, or shaped
+  // differently than vault.planStatus() expects — see src/vault.js.
+  planReviewEnabled: false,
+  planNotePath: "", // vault-relative path, e.g. "10_SelfDev/3_Long term planning.md"
+  planReviewStaleDays: 30,
+  planMaxActiveProjects: 3,
 
   // --- Misc ---
   // chrome.alarms has a practical minimum period of ~1 minute; this plays

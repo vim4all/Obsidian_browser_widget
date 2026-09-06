@@ -286,6 +286,29 @@ async function maybeSendWeeklyReview(config, vaultHandle) {
   let body = `Habits this week: ${pct}% (${totalDone}/${totalPossible}).`
   body += zeroDays > 0 ? ` ${zeroDays} day(s) at zero.` : " No zero days — keep it up."
 
+  // Folded into this same notification rather than a new one, deliberately:
+  // the vault's own weekly ritual already reviews the plan note right after
+  // the daily/weekly reports (see 3_Long term planning.md's review panel),
+  // so this just surfaces the two numbers that panel already computes,
+  // instead of adding a ninth independently-timed nag with its own rate
+  // limit to reason about.
+  if (config.planReviewEnabled) {
+    try {
+      const plan = await vault.planStatus(vaultHandle, config)
+      if (plan) {
+        if (plan.staleDays !== null && plan.staleDays >= config.planReviewStaleDays) {
+          body += `\nPlan last reviewed ${plan.staleDays}d ago.`
+        }
+        if (plan.activeCount > config.planMaxActiveProjects) {
+          body += `\n${plan.activeCount} active projects (max ${config.planMaxActiveProjects}).`
+        }
+      }
+    } catch (e) {
+      // Plan note unreadable/misshapen — the habit half of this
+      // notification still matters, so it still goes out without it.
+    }
+  }
+
   await sendNotification("Weekly review", body, { openURL: vault.obsidianNoteURL(config, today) })
   await store.setDate("lastWeeklyReview", today)
 }

@@ -43,12 +43,14 @@ async function runTick() {
   let note = null
   let tasks = []
   let isRestDayToday = false
+  let yesterdayStatus = null
   try {
     note = await vault.readNote(handle, config, vault.todayId())
     if (note !== null) {
       tasks = vault.parseTasks(note, config)
       isRestDayToday = vault.isRestDay(vault.parseFrontmatter(note), config)
     }
+    yesterdayStatus = await vault.yesterdayReviewStatus(handle, config)
   } catch (e) {
     // Same reasoning as above: nags can just skip a tick on stale data, but
     // the guard's rule outlives the tick, so it has to be released.
@@ -56,7 +58,7 @@ async function runTick() {
     return
   }
 
-  await syncGuardFromNote(config, note !== null, tasks, isRestDayToday)
+  await syncGuardFromNote(config, note !== null, tasks, isRestDayToday, yesterdayStatus)
   await runNotifiers(config, handle, tasks, isRestDayToday)
 }
 

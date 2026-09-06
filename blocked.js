@@ -9,7 +9,7 @@
 
 import { loadConfig } from "./src/config.js"
 import { checkVaultAccess } from "./src/vaultAccess.js"
-import { readGuardState, snoozeGuard, getSnoozeUntil, runGuard } from "./src/distractionGuard.js"
+import { readGuardState, readDeepWorkState, snoozeGuard, getSnoozeUntil, runGuard } from "./src/distractionGuard.js"
 import { renderTaskRow } from "./shared/render.js"
 import * as vault from "./src/vault.js"
 
@@ -25,6 +25,7 @@ const snoozeNoteEl = document.getElementById("snoozeNote")
 const REASON_TEXT = {
   "no-daily-note": "There is no daily note for today yet. Write today's plan first.",
   "overdue-tasks": "You have tasks whose time block has already ended, still unchecked.",
+  "incomplete-review": "Yesterday's note is missing, or its Win/Reflection fields are still empty.",
 }
 
 function describe(reasons) {
@@ -36,11 +37,12 @@ function describe(reasons) {
 async function paint() {
   const config = await loadConfig()
   const state = await readGuardState()
+  const deepWork = await readDeepWorkState()
 
   document.documentElement.style.setProperty("--overdue-color", config.overdueColor)
 
-  if (!state.active) {
-    // The guard cleared between the redirect and this page painting —
+  if (!state.active && !deepWork.active) {
+    // Both guards cleared between the redirect and this page painting —
     // most likely the user fixed the note in another window. Say so rather
     // than showing a block reason that no longer holds.
     titleEl.textContent = "You're clear"
@@ -51,24 +53,35 @@ async function paint() {
     return
   }
 
-  titleEl.textContent = "Not yet."
-  reasonEl.textContent = describe(state.reasons || [])
-
   tasksEl.innerHTML = ""
-  const overdue = state.overdueTasks || []
-  tasksLabelEl.hidden = overdue.length === 0
-  for (const task of overdue) {
-    tasksEl.appendChild(
-      renderTaskRow(
-        { ...task, done: false, overdue: true },
-        config.tagColors,
-        config.defaultTagColor,
-        // Always "red" here regardless of config.overdueTaskStyle: this
-        // page exists *because* these tasks are overdue, so honoring a
-        // "none" setting would strip the one bit of information it is for.
-        "red"
+  if (deepWork.active) {
+    // The deep-work guard's allowlist is what's blocking here, not the site
+    // guard's reason list — name the task instead so it's clear this isn't
+    // the same block as the one below.
+    titleEl.textContent = "Deep work."
+    reasonEl.textContent = deepWork.task
+      ? `You're in a #tdeep block right now — "${deepWork.task.text}". Only allowlisted sites are open until it ends.`
+      : "A #tdeep block is running right now. Only allowlisted sites are open until it ends."
+    tasksLabelEl.hidden = true
+  } else {
+    titleEl.textContent = "Not yet."
+    reasonEl.textContent = describe(state.reasons || [])
+
+    const overdue = state.overdueTasks || []
+    tasksLabelEl.hidden = overdue.length === 0
+    for (const task of overdue) {
+      tasksEl.appendChild(
+        renderTaskRow(
+          { ...task, done: false, overdue: true },
+          config.tagColors,
+          config.defaultTagColor,
+          // Always "red" here regardless of config.overdueTaskStyle: this
+          // page exists *because* these tasks are overdue, so honoring a
+          // "none" setting would strip the one bit of information it is for.
+          "red"
+        )
       )
-    )
+    }
   }
 
   const snoozeUntil = await getSnoozeUntil()
@@ -89,10 +102,15 @@ async function paint() {
 openNoteButton.addEventListener("click", async () => {
   const config = await loadConfig()
   const state = await readGuardState()
-  const id = state.noteId || vault.todayId()
-  // Same obsidian:// deep link the notifications use. If today's note does
-  // not exist yet this opens Obsidian at a missing file, which is exactly
-  // the prompt to create it.
+  const reasons = state.reasons || []
+  // Only reason is yesterday's review being incomplete → that's the note to
+  // fix, not today's. Any other reason (or a mix) is about today's plan, so
+  // today's note stays the default target.
+  const onlyIncompleteReview = reasons.length === 1 && reasons[0] === "incomplete-review"
+  const id = (onlyIncompleteReview ? state.yesterdayNoteId : state.noteId) || vault.todayId()
+  // Same obsidian:// deep link the notifications use. If the target note
+  // does not exist yet this opens Obsidian at a missing file, which is
+  // exactly the prompt to create it.
   chrome.tabs.create({ url: vault.obsidianNoteURL(config, id) })
 })
 

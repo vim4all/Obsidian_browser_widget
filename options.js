@@ -10,11 +10,11 @@ const vaultMessageEl = document.getElementById("vaultMessage")
 const connectButton = document.getElementById("connectButton")
 const disconnectButton = document.getElementById("disconnectButton")
 
-// Every DEFAULTS key maps 1:1 to a form field name except two edited as
+// Every DEFAULTS key maps 1:1 to a form field name except three edited as
 // free text: tagColors (a JSON blob — a per-tag color picker isn't worth
-// the UI for something edited maybe once) and blockedSites (a newline-
-// separated list, which is far easier to paste into than a JSON array).
-const TEXT_BLOB_KEYS = ["tagColors", "blockedSites"]
+// the UI for something edited maybe once) and blockedSites/deepWorkAllowlist
+// (newline-separated lists, far easier to paste into than a JSON array).
+const TEXT_BLOB_KEYS = ["tagColors", "blockedSites", "deepWorkAllowlist"]
 const SIMPLE_KEYS = Object.keys(DEFAULTS).filter((k) => !TEXT_BLOB_KEYS.includes(k))
 
 function populateForm(config) {
@@ -31,6 +31,7 @@ function populateForm(config) {
   }
   form.elements.tagColorsJson.value = JSON.stringify(config.tagColors, null, 2)
   form.elements.blockedSitesText.value = (config.blockedSites || []).join("\n")
+  form.elements.deepWorkAllowlistText.value = (config.deepWorkAllowlist || []).join("\n")
 }
 
 function readForm(currentConfig) {
@@ -59,6 +60,7 @@ function readForm(currentConfig) {
   // becomes "reddit.com" and the user sees that when the form repopulates,
   // instead of wondering why their entry looks different from what blocks.
   config.blockedSites = normalizeSites(form.elements.blockedSitesText.value.split("\n"))
+  config.deepWorkAllowlist = normalizeSites(form.elements.deepWorkAllowlistText.value.split("\n"))
   return config
 }
 

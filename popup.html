@@ -26,8 +26,14 @@
 
     <div class="placeholder" id="placeholder">Loading…</div>
     <button class="connect-button" id="connectButton" hidden>Connect vault folder</button>
+    <form class="quick-add" id="quickAdd" hidden>
+      <input class="quick-add-input" id="quickAddInput" type="text" placeholder="Add a task…" autocomplete="off" />
+      <button class="quick-add-button" id="quickAddButton" type="submit" title="Add task">+</button>
+    </form>
+    <div class="quick-add-status" id="quickAddStatus" hidden></div>
     <div class="tasks" id="tasks"></div>
     <div class="more" id="more" hidden></div>
+    <div class="stranded" id="stranded" hidden></div>
     <div class="heatmap" id="heatmap"></div>
   </div>
 

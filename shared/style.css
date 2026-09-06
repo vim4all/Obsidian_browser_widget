@@ -95,6 +95,71 @@ body {
   opacity: 0.9;
 }
 
+.quick-add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.quick-add-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg-top);
+  border: 1px solid var(--divider);
+  border-radius: 7px;
+  padding: 6px 8px;
+}
+
+.quick-add-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.quick-add-button {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  color: white;
+  background: var(--accent);
+  border: none;
+  border-radius: 7px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.quick-add-button:hover {
+  opacity: 0.9;
+}
+
+.quick-add-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.quick-add-status {
+  font-size: 11px;
+  color: var(--overdue-color);
+  margin: -4px 0 8px;
+}
+
+.stranded {
+  font-size: 10px;
+  color: var(--subtext);
+  margin-top: 6px;
+}
+
+.stranded-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.stranded-link:hover {
+  text-decoration: underline;
+}
+
 .tasks {
   display: flex;
   flex-direction: column;

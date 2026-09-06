@@ -8,6 +8,11 @@ initWidgetPage(
     tasks: document.getElementById("tasks"),
     more: document.getElementById("more"),
     heatmap: document.getElementById("heatmap"),
+    stranded: document.getElementById("stranded"),
+    quickAdd: document.getElementById("quickAdd"),
+    quickAddInput: document.getElementById("quickAddInput"),
+    quickAddButton: document.getElementById("quickAddButton"),
+    quickAddStatus: document.getElementById("quickAddStatus"),
   },
   document.getElementById("connectButton"),
   MAX_VISIBLE_TASKS

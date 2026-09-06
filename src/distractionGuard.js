@@ -26,17 +26,30 @@
 // wall someone off from their browser, and a stale rule left behind by a
 // crashed tick would do exactly that — dynamic DNR rules persist across
 // browser restarts and extension reloads until something removes them.
+//
+// This file actually owns two independent guards sharing that same
+// fail-open posture: the site-blocklist guard described above, and a
+// stricter "deep-work" guard further down (search for "Deep-work guard")
+// that blocks everything *except* an allowlist while a #tdeep-tagged task's
+// time block is running. Keep the two independent rather than merging them
+// — they have different activation conditions, different DNR rule shapes,
+// and a bug in one must never take the other down with it.
 
 import * as vault from "./vault.js"
 
-// Reserved dynamic-rule ID. Kept in a constant (and as a single-element
-// list) so a future second guard rule can be added without hunting for
-// every place the ID is assumed.
+// Reserved dynamic-rule IDs — one for the site-blocklist guard above, one
+// for the deep-work guard below (see that section for what it does).
 const RULE_ID = 1001
 const GUARD_RULE_IDS = [RULE_ID]
+const DEEP_WORK_RULE_ID = 1002
+const DEEP_WORK_RULE_IDS = [DEEP_WORK_RULE_ID]
 
 const STATE_KEY = "guard.state"
+const DEEP_WORK_STATE_KEY = "guard.deepWork.state"
 const SNOOZE_KEY = "guard.snoozeUntil"
+
+const EMPTY_GUARD_STATE = { blocking: false, reasons: [], overdueTasks: [], noteId: null, yesterdayNoteId: null }
+const EMPTY_DEEP_WORK_STATE = { active: false, task: null }
 
 // --- Snooze ---------------------------------------------------------------
 // The escape hatch. A blocker with no way out is a blocker that eventually
@@ -70,11 +83,25 @@ export async function clearSnooze() {
 
 export async function readGuardState() {
   const result = await chrome.storage.local.get(STATE_KEY)
-  return result[STATE_KEY] || { blocking: false, reasons: [], overdueTasks: [], noteId: null }
+  return result[STATE_KEY] || EMPTY_GUARD_STATE
 }
 
 async function writeGuardState(state) {
   await chrome.storage.local.set({ [STATE_KEY]: state })
+}
+
+// Same "state for the block page to explain itself" role as readGuardState
+// above, for the deep-work guard (see that section below) — kept as a
+// separate key rather than merged into the site guard's state because the
+// two activate independently and blocked.js needs to tell which one sent
+// the user there.
+export async function readDeepWorkState() {
+  const result = await chrome.storage.local.get(DEEP_WORK_STATE_KEY)
+  return result[DEEP_WORK_STATE_KEY] || EMPTY_DEEP_WORK_STATE
+}
+
+async function writeDeepWorkState(state) {
+  await chrome.storage.local.set({ [DEEP_WORK_STATE_KEY]: state })
 }
 
 // --- Evaluation -----------------------------------------------------------
@@ -84,13 +111,16 @@ async function writeGuardState(state) {
 // vault to render themselves — can reuse their read instead of paying for a
 // second one. `noteExists` is false when today has no daily note at all
 // (vault.readNote returning null); the note's actual text is never needed
-// here, only its tasks, which the caller has already parsed.
-export function evaluateGuard(config, noteExists, tasks, isRestDayToday, now = new Date()) {
+// here, only its tasks, which the caller has already parsed. `yesterdayStatus`
+// is the caller's already-read vault.yesterdayReviewStatus() result (or null
+// if that read failed — see runGuard/syncGuardFromNote for why null means
+// "skip this check" rather than "yesterday failed review").
+export function evaluateGuard(config, noteExists, tasks, isRestDayToday, yesterdayStatus, now = new Date()) {
   const reasons = []
   let overdueTasks = []
 
   if (config.guardRespectsRestDay && isRestDayToday) {
-    return { blocking: false, reasons: [], overdueTasks: [], noteId: vault.dateId(now) }
+    return { blocking: false, reasons: [], overdueTasks: [], noteId: vault.dateId(now), yesterdayNoteId: null }
   }
 
   if (config.blockOnMissingDailyNote && !noteExists) {
@@ -102,11 +132,16 @@ export function evaluateGuard(config, noteExists, tasks, isRestDayToday, now = n
     if (overdueTasks.length > 0) reasons.push("overdue-tasks")
   }
 
+  if (config.blockOnIncompleteReview && yesterdayStatus && (yesterdayStatus.missing || !yesterdayStatus.filled)) {
+    reasons.push("incomplete-review")
+  }
+
   return {
     blocking: reasons.length > 0,
     reasons,
     overdueTasks: overdueTasks.map((t) => ({ text: t.text, time: t.time, tags: t.tags })),
     noteId: vault.dateId(now),
+    yesterdayNoteId: yesterdayStatus ? yesterdayStatus.id : null,
   }
 }
 
@@ -162,6 +197,54 @@ async function installRule(sites) {
   })
 }
 
+function hostnameMatchesAny(hostname, sites) {
+  return sites.some((site) => hostname === site || hostname.endsWith(`.${site}`))
+}
+
+// DNR's redirect rule only intercepts *new* navigations — a tab already
+// sitting on youtube.com before the guard activated keeps loading fine
+// forever, since nothing about an already-committed page re-runs the rule.
+// This closes that gap by finding open tabs matching `matches(hostname)`
+// directly and sending them to blocked.html too. Runs on every active tick
+// (cheap: one chrome.tabs.query), so a tab opened in the moment between two
+// ticks still gets caught rather than only tabs that existed at the instant
+// blocking started. Shared by both guards below — the site-blocklist guard
+// passes "is this hostname in blockedSites", the deep-work guard passes "is
+// this hostname NOT in the allowlist".
+//
+// Restricted to http(s) tabs: chrome://, chrome-extension:// (which
+// includes this extension's own newtab/popup/options/blocked pages),
+// vivaldi://, and file:// are never candidates — the deep-work guard's
+// "block everything except an allowlist" condition would otherwise happily
+// try to redirect the browser's own settings pages or this widget's own New
+// Tab override, which "block distracting websites" was never meant to
+// cover.
+async function redirectMatchingTabs(matches) {
+  const blockedUrl = chrome.runtime.getURL("blocked.html")
+  let tabs
+  try {
+    tabs = await chrome.tabs.query({})
+  } catch (e) {
+    return
+  }
+  for (const tab of tabs) {
+    const url = tab.url || tab.pendingUrl
+    if (!url) continue
+    let parsed
+    try {
+      parsed = new URL(url)
+    } catch (e) {
+      continue
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue
+    const hostname = parsed.hostname.replace(/^www\./, "")
+    if (!hostname) continue
+    if (matches(hostname)) {
+      chrome.tabs.update(tab.id, { url: blockedUrl }).catch(() => {})
+    }
+  }
+}
+
 // Applies a state produced by evaluateGuard: installs the block rule when
 // blocking, removes it otherwise, and records the state for blocked.html.
 // Safe to call on every tick — replacing the rule with an identical one is
@@ -172,6 +255,7 @@ export async function applyGuardState(config, state) {
 
   if (active) {
     await installRule(sites)
+    await redirectMatchingTabs((hostname) => hostnameMatchesAny(hostname, sites))
   } else {
     await removeRule()
   }
@@ -179,43 +263,129 @@ export async function applyGuardState(config, state) {
   return active
 }
 
+// --- Deep-work guard --------------------------------------------------------
+// A stricter sibling of the guard above, keyed off the vault's own #tdeep
+// tag rather than a fixed condition list: while a #tdeep-tagged task's own
+// time block is the one running right now, block every site EXCEPT
+// deepWorkAllowlist instead of just blockedSites. This is the vault's own
+// ADHD-toolkit if-then plan ("off-task tab during deep work → close it,
+// without negotiating") implemented literally rather than left as something
+// to remember to do by hand.
+//
+// Same fail-open posture as the site guard, plus one more: it also refuses
+// to activate on an empty allowlist (see applyDeepWorkState) — an empty
+// list would otherwise mean "block the entire web", which is exactly the
+// kind of surprise this repo's fail-open philosophy exists to prevent.
+
+// True while `now` falls inside a not-done #tdeep task's own time block.
+// `task` is that task (for blocked.html to name), or null when nothing
+// currently qualifies.
+export function evaluateDeepWork(tasks, now = new Date()) {
+  const task = tasks.find((t) => !t.done && t.tags.includes("tdeep") && vault.isTaskActiveNow(t, now))
+  return { active: Boolean(task), task: task ? { text: task.text, time: task.time } : null }
+}
+
+async function removeExcludeRule() {
+  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: DEEP_WORK_RULE_IDS })
+}
+
+async function installExcludeRule(allowlist) {
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: DEEP_WORK_RULE_IDS,
+    addRules: [
+      {
+        id: DEEP_WORK_RULE_ID,
+        priority: 1,
+        action: { type: "redirect", redirect: { extensionPath: "/blocked.html" } },
+        // No requestDomains here, on purpose: omitting it (unlike the site
+        // guard's rule, which sets it) means "match every domain", and
+        // excludedRequestDomains then subtracts the allowlist back out —
+        // together that's "block everything except these".
+        condition: { excludedRequestDomains: allowlist, resourceTypes: ["main_frame"] },
+      },
+    ],
+  })
+}
+
+// Same role as applyGuardState, for the deep-work rule.
+export async function applyDeepWorkState(config, state) {
+  const allowlist = normalizeSites(config.deepWorkAllowlist)
+  const active = Boolean(state.active) && allowlist.length > 0 && !(await getSnoozeUntil())
+
+  if (active) {
+    await installExcludeRule(allowlist)
+    await redirectMatchingTabs((hostname) => !hostnameMatchesAny(hostname, allowlist))
+  } else {
+    await removeExcludeRule()
+  }
+  await writeDeepWorkState({ ...state, active, allowlist, updatedAt: Date.now() })
+  return active
+}
+
+// For callers that already have today's parsed tasks — mirrors
+// syncGuardFromNote's role for the site guard, and is always called
+// alongside it (see syncGuardFromNote/runGuard below) so the two guards
+// never fall out of sync with each other.
+async function syncDeepWorkGuard(config, tasks) {
+  if (!config.deepWorkGuardEnabled) {
+    return applyDeepWorkState(config, EMPTY_DEEP_WORK_STATE)
+  }
+  return applyDeepWorkState(config, evaluateDeepWork(tasks))
+}
+
 // For callers that have *already* read today's note — the offscreen tick and
 // the widget pages both do, to render/nag — so the guard rides along on
 // their read instead of hitting the disk a second time. Handles the
-// enabled check itself so callers do not each have to remember it.
-export async function syncGuardFromNote(config, noteExists, tasks, isRestDayToday) {
-  if (!config.distractionGuardEnabled) {
-    return applyGuardState(config, { blocking: false, reasons: [], overdueTasks: [], noteId: null })
-  }
-  return applyGuardState(config, evaluateGuard(config, noteExists, tasks, isRestDayToday))
+// enabled check itself so callers do not each have to remember it. Also
+// drives the deep-work guard off the same `tasks`, so callers only have to
+// remember to call this one function to keep both in sync.
+// `yesterdayStatus` is the caller's already-read vault.yesterdayReviewStatus()
+// result, or null if that read isn't available/failed — see evaluateGuard.
+export async function syncGuardFromNote(config, noteExists, tasks, isRestDayToday, yesterdayStatus = null) {
+  const siteActive = config.distractionGuardEnabled
+    ? await applyGuardState(config, evaluateGuard(config, noteExists, tasks, isRestDayToday, yesterdayStatus))
+    : await applyGuardState(config, EMPTY_GUARD_STATE)
+  await syncDeepWorkGuard(config, tasks)
+  return siteActive
 }
 
 // Full evaluate-and-apply for callers that hold a vault handle but have not
 // read today's note yet (the block page's re-check button). Returns whether
-// the block is now active.
+// the site-blocklist guard is now active; also syncs the deep-work guard.
 //
 // Note the two distinct "give up and unblock" exits below: a lapsed
 // permission and an unreadable vault. Both are the fail-open rule above —
 // neither is an error worth surfacing here, because the widget pages
 // already show the user a "Connect vault folder" prompt for the first and
-// an error line for the second.
+// an error line for the second. Both exits release *both* rules regardless
+// of which guards are enabled — an unreadable vault must never leave either
+// one stuck on, and the deep-work rule is the more dangerous of the two to
+// leave stale (see its section above).
 export async function runGuard(config, vaultHandle, status = "granted") {
-  if (!config.distractionGuardEnabled || status !== "granted" || !vaultHandle) {
-    return applyGuardState(config, { blocking: false, reasons: [], overdueTasks: [], noteId: null })
+  if (status !== "granted" || !vaultHandle) {
+    await applyDeepWorkState(config, EMPTY_DEEP_WORK_STATE)
+    return applyGuardState(config, EMPTY_GUARD_STATE)
   }
 
   let note = null
   let tasks = []
   let isRestDayToday = false
+  let yesterdayStatus = null
   try {
     note = await vault.readNote(vaultHandle, config, vault.todayId())
     if (note !== null) {
       tasks = vault.parseTasks(note, config)
       isRestDayToday = vault.isRestDay(vault.parseFrontmatter(note), config)
     }
+    yesterdayStatus = await vault.yesterdayReviewStatus(vaultHandle, config)
   } catch (e) {
-    return applyGuardState(config, { blocking: false, reasons: [], overdueTasks: [], noteId: null })
+    await applyDeepWorkState(config, EMPTY_DEEP_WORK_STATE)
+    return applyGuardState(config, EMPTY_GUARD_STATE)
   }
 
-  return applyGuardState(config, evaluateGuard(config, note !== null, tasks, isRestDayToday))
+  const siteActive = config.distractionGuardEnabled
+    ? await applyGuardState(config, evaluateGuard(config, note !== null, tasks, isRestDayToday, yesterdayStatus))
+    : await applyGuardState(config, EMPTY_GUARD_STATE)
+  await syncDeepWorkGuard(config, tasks)
+  return siteActive
 }

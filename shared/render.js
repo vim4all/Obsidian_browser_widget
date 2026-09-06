@@ -8,8 +8,8 @@
 
 const GREEN_LEVELS = ["#9be9a8", "#40c463", "#30a14e", "#216e39"]
 
-// els: { placeholder, tasks, more, heatmap } — the four elements every host
-// page's HTML must provide (see newtab.html / popup.html).
+// els: { placeholder, tasks, more, heatmap, stranded } — the elements every
+// host page's HTML must provide (see newtab.html / popup.html).
 // maxVisibleTasks: popup.html passes a smaller number than newtab.html since
 // the popup has a hard height ceiling browsers impose.
 export function render(els, data, maxVisibleTasks) {
@@ -39,6 +39,31 @@ export function render(els, data, maxVisibleTasks) {
   }
 
   renderHeatmap(els.heatmap, data.week || [])
+  if (els.stranded) renderStranded(els.stranded, data)
+}
+
+// A quiet, read-only glance at open tasks left behind in past daily notes —
+// not a nag, just a number. Hidden whenever there's nothing to show, same
+// as .more above, so it never occupies space with a "0 stranded" line.
+function renderStranded(strandedEl, data) {
+  const stranded = data.stranded
+  if (!data.vaultConfigured || !stranded || stranded.count === 0) {
+    strandedEl.hidden = true
+    return
+  }
+  strandedEl.hidden = false
+  strandedEl.innerHTML = ""
+  strandedEl.appendChild(
+    document.createTextNode(`${stranded.count} stranded task${stranded.count === 1 ? "" : "s"} (oldest ${stranded.oldestDays}d)`)
+  )
+  if (data.triageURL) {
+    strandedEl.appendChild(document.createTextNode(" — "))
+    const link = document.createElement("a")
+    link.href = data.triageURL
+    link.className = "stranded-link"
+    link.textContent = "Triage"
+    strandedEl.appendChild(link)
+  }
 }
 
 // Exported for blocked.js, which lists the overdue tasks that triggered the

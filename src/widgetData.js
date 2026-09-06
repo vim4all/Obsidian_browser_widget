@@ -40,12 +40,36 @@ export async function buildWidgetData(config, vaultHandle) {
     week = []
   }
 
+  // Read alongside (not gated on) today's note above: the distraction guard
+  // needs it regardless of whether today's read succeeded, and null here
+  // means "skip that check" (fail open), not "yesterday failed review".
+  let yesterdayStatus = null
+  try {
+    yesterdayStatus = await vault.yesterdayReviewStatus(vaultHandle, config)
+  } catch (e) {
+    yesterdayStatus = null
+  }
+
+  // A read-only glance at past days' leftover open tasks — not a nag, just
+  // a number next to the list (see shared/render.js). Own try/catch, same
+  // reasoning as week/yesterdayStatus above: a failure here shouldn't cost
+  // the user today's task list.
+  let stranded = null
+  try {
+    stranded = await vault.countStrandedTasks(vaultHandle, config, config.strandedLookbackDays)
+  } catch (e) {
+    stranded = null
+  }
+
   return {
     vaultConfigured: true,
     error,
     noteExists,
     tasks,
     isRestDayToday,
+    yesterdayStatus,
+    stranded,
+    triageURL: config.triageNotePath ? vault.obsidianFileURL(config, config.triageNotePath) : null,
     week,
     tagColors: config.tagColors,
     defaultTagColor: config.defaultTagColor,
