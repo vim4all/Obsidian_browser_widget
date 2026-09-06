@@ -176,6 +176,45 @@ export function normalizeSites(list) {
   return [...seen]
 }
 
+// --- Context bridge ---------------------------------------------------------
+// chrome.declarativeNetRequest and chrome.tabs are NOT part of the limited
+// API slice an offscreen document receives, and this module is imported by
+// both the offscreen tick and by real extension pages (newtab, popup,
+// options, blocked). Rather than split the module in two, the two functions
+// that actually touch those APIs check here first: a context that has them
+// enforces directly, and the offscreen document hands the work to the
+// service worker, which does have them.
+//
+// This is the same defect chrome.notifications had — see background.js. Its
+// symptom here was quieter and so easier to miss: the guard still worked,
+// because newtab/popup/options all call these directly, so blocking only
+// ever lagged until the next time the widget was opened. The 5-minute
+// background tick had never once applied a rule.
+export const GUARD_APPLY_MESSAGE = "obsidian-widget:guard-apply"
+export const DEEP_WORK_APPLY_MESSAGE = "obsidian-widget:deep-work-apply"
+
+function canEnforce() {
+  return Boolean(
+    typeof chrome !== "undefined" &&
+      chrome.declarativeNetRequest &&
+      typeof chrome.declarativeNetRequest.updateDynamicRules === "function" &&
+      chrome.tabs &&
+      typeof chrome.tabs.query === "function"
+  )
+}
+
+async function delegateToWorker(type, config, state) {
+  try {
+    const result = await chrome.runtime.sendMessage({ type, config, state })
+    return Boolean(result && result.active)
+  } catch (e) {
+    // Fail open, per this file's standing rule: if the worker can't be
+    // reached there is no way to enforce, and silently believing we did
+    // would be worse than not blocking.
+    return false
+  }
+}
+
 async function removeRule() {
   await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: GUARD_RULE_IDS })
 }
@@ -250,6 +289,7 @@ async function redirectMatchingTabs(matches) {
 // Safe to call on every tick — replacing the rule with an identical one is
 // invisible to the user, and the writes are cheap.
 export async function applyGuardState(config, state) {
+  if (!canEnforce()) return delegateToWorker(GUARD_APPLY_MESSAGE, config, state)
   const sites = normalizeSites(config.blockedSites)
   const active = Boolean(state.blocking) && sites.length > 0 && !(await getSnoozeUntil())
 
@@ -309,6 +349,7 @@ async function installExcludeRule(allowlist) {
 
 // Same role as applyGuardState, for the deep-work rule.
 export async function applyDeepWorkState(config, state) {
+  if (!canEnforce()) return delegateToWorker(DEEP_WORK_APPLY_MESSAGE, config, state)
   const allowlist = normalizeSites(config.deepWorkAllowlist)
   const active = Boolean(state.active) && allowlist.length > 0 && !(await getSnoozeUntil())
 

@@ -68,16 +68,47 @@ function nextNotificationId(tag) {
 // even the system-beep fallback Electron's `shell.beep()` gave it (there's
 // no beep primitive available to an extension). The harsher nags rely on
 // `priority: 2` alone to stand out.
+// Message the service worker sends notifications on behalf of this module.
+export const NOTIFY_MESSAGE = "obsidian-widget:notify"
+
+// Diagnostics surfaced in options.html — see the catch in runNotifiers.
+export const LAST_NOTIFIER_ERROR_KEY = "diag.lastNotifierError"
+export const LAST_NOTIFIER_RUN_KEY = "diag.lastNotifierRun"
+
+async function recordNotifierError(e) {
+  try {
+    await chrome.storage.local.set({
+      [LAST_NOTIFIER_ERROR_KEY]: { message: String((e && e.message) || e), at: Date.now() },
+    })
+  } catch (_) {
+    // Diagnostics must never themselves become a failure path.
+  }
+}
+
+// This module runs inside the offscreen document, and an offscreen document
+// does NOT get the full extension API surface — chrome.notifications is not
+// among the APIs exposed to it. Calling chrome.notifications.create() here
+// throws "Cannot read properties of undefined", which runNotifiers' catch
+// then swallowed, so every nag failed silently from the very first tick.
+//
+// So the actual create() call belongs in the service worker, which does
+// have the API. This function hands it the fully-built payload and lets
+// background.js do the one thing only it can. Don't "simplify" this back
+// into a direct chrome.notifications call — it will fail, and it will fail
+// quietly.
 async function sendNotification(title, body, options = {}) {
   const id = nextNotificationId(options.tag || "obsidian-widget")
-  await chrome.notifications.create(id, {
-    type: "basic",
-    iconUrl: chrome.runtime.getURL("icons/128.png"),
+  // Recorded before the notification exists, not after: a notification can
+  // be clicked the instant it appears, and the click handler needs the
+  // target already in storage to resolve it.
+  if (options.openURL) await rememberTarget(id, options.openURL)
+  await chrome.runtime.sendMessage({
+    type: NOTIFY_MESSAGE,
+    id,
     title,
     message: body,
     priority: options.urgent ? 2 : 0,
   })
-  if (options.openURL) await rememberTarget(id, options.openURL)
 }
 
 function hashString(s) {
@@ -349,6 +380,10 @@ async function maybeSendStreakBreakAlert(config, vaultHandle) {
 // the rest for that tick (the same bug class the iOS script's comment
 // warns about, and the Windows app preserves the fix for).
 export async function runNotifiers(config, vaultHandle, tasks, isRestDayToday) {
+  // Stamped even when notifications are off, so the Settings diagnostics can
+  // distinguish "the tick never runs" from "the tick runs and decides not to
+  // notify" — two very different problems that look identical from outside.
+  await chrome.storage.local.set({ [LAST_NOTIFIER_RUN_KEY]: Date.now() })
   if (!config.notificationsEnabled) return
   const notifiers = [
     () => maybeSendFocusReminder(config, tasks, isRestDayToday),
@@ -364,7 +399,15 @@ export async function runNotifiers(config, vaultHandle, tasks, isRestDayToday) {
     try {
       await notify()
     } catch (e) {
-      // Never let one notifier's failure block the widget or its siblings.
+      // Never let one notifier's failure block the widget or its siblings —
+      // but never let it vanish either. An earlier version had an empty
+      // catch here, which is how a total notification outage (every
+      // chrome.notifications call throwing, because this runs in an
+      // offscreen document that has no such API) went unnoticed: no toast,
+      // no error, nothing to search for. Record it so options.html can show
+      // it.
+      console.error("[obsidian-widget] notifier failed:", e)
+      await recordNotifierError(e)
     }
   }
 }

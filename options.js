@@ -2,6 +2,7 @@ import { loadConfig, saveConfig, DEFAULTS } from "./src/config.js"
 import { checkVaultAccess, clearVaultHandle } from "./src/vaultAccess.js"
 import { connectVault, reconnectVault } from "./shared/vaultConnect.js"
 import { runGuard, normalizeSites } from "./src/distractionGuard.js"
+import { LAST_NOTIFIER_ERROR_KEY, LAST_NOTIFIER_RUN_KEY } from "./src/notifications.js"
 
 const form = document.getElementById("configForm")
 const saveStatus = document.getElementById("saveStatus")
@@ -79,10 +80,56 @@ async function refreshVaultStatus() {
   }
 }
 
+const testNotificationButton = document.getElementById("testNotificationButton")
+const testNotificationMessage = document.getElementById("testNotificationMessage")
+const lastTickStatus = document.getElementById("lastTickStatus")
+const lastErrorStatus = document.getElementById("lastErrorStatus")
+
+// Distinguishing "the background check never runs" from "it runs and
+// decides nothing is due" is the single most useful thing this page can
+// tell you — those two look identical from the outside (no notification),
+// but one is a bug and the other is the feature working.
+async function refreshDiagnostics() {
+  const stored = await chrome.storage.local.get([LAST_NOTIFIER_RUN_KEY, LAST_NOTIFIER_ERROR_KEY])
+  const lastRun = stored[LAST_NOTIFIER_RUN_KEY]
+  lastTickStatus.textContent = lastRun
+    ? `Last background check: ${new Date(lastRun).toLocaleString()}`
+    : "Last background check: never — the background tick has not run yet."
+
+  const lastError = stored[LAST_NOTIFIER_ERROR_KEY]
+  lastErrorStatus.hidden = !lastError
+  if (lastError) {
+    lastErrorStatus.textContent = `Last notifier error (${new Date(lastError.at).toLocaleString()}): ${lastError.message}`
+  }
+}
+
+testNotificationButton.addEventListener("click", async () => {
+  testNotificationButton.disabled = true
+  testNotificationMessage.hidden = true
+  try {
+    // Created by the service worker, not here — same path the real nags
+    // take, so a pass here means the real ones will work too.
+    const result = await chrome.runtime.sendMessage({ type: "obsidian-widget:test-notification" })
+    testNotificationMessage.hidden = false
+    if (result && result.ok) {
+      testNotificationMessage.textContent =
+        "Sent. If no notification appeared, the extension is fine and the block is Vivaldi or Windows — check Windows Settings → System → Notifications → Vivaldi."
+    } else {
+      testNotificationMessage.textContent = `Failed: ${(result && result.error) || "no response from the service worker"}`
+    }
+  } catch (e) {
+    testNotificationMessage.hidden = false
+    testNotificationMessage.textContent = `Failed: ${e.message || e}`
+  }
+  testNotificationButton.disabled = false
+  await refreshDiagnostics()
+})
+
 async function init() {
   const config = await loadConfig()
   populateForm(config)
   await refreshVaultStatus()
+  await refreshDiagnostics()
 }
 
 connectButton.addEventListener("click", async () => {

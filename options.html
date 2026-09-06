@@ -19,6 +19,21 @@
     <p id="vaultMessage" class="message" hidden></p>
   </section>
 
+  <section class="panel" id="diagnosticsSection">
+    <h2>Diagnostics</h2>
+    <p class="hint">
+      Notifications only fire inside their configured hour windows, so silence is often correct
+      rather than broken. This sends one immediately, bypassing every window and rate limit, to
+      separate "not due yet" from "not working".
+    </p>
+    <div class="row">
+      <button id="testNotificationButton" type="button">Send test notification</button>
+    </div>
+    <p id="testNotificationMessage" class="message" hidden></p>
+    <p class="status" id="lastTickStatus">Last background check: …</p>
+    <p class="status" id="lastErrorStatus" hidden></p>
+  </section>
+
   <form id="configForm">
     <section class="panel">
       <h2>Daily note</h2>

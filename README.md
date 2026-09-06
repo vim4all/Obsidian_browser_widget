@@ -172,6 +172,18 @@ It shares the same snooze button, the same "redirect tabs already open, not just
 - **Toolbar popup** — click the extension icon any time for the same view in a compact window.
 - **Settings (⚙ icon, or right-click the toolbar icon → Options)** — vault connect/disconnect, and every tunable below.
 
+### If you never see a notification
+
+Every nag is gated by an hour window, so silence is usually correct rather than broken — focus reminders are weekdays 9–18, the morning kickoff only fires 08:00–10:00, the planning and undone nags not before 22:00. On a Sunday morning, six of the eight are switched off by design.
+
+To tell "not due yet" apart from "not working", open **Settings → Diagnostics** and click **Send test notification**. It bypasses every window and rate limit and takes the same path the real nags take:
+
+- **Toast appears** — the plumbing is fine; you were outside the windows.
+- **"Sent" but no toast** — Vivaldi or Windows is suppressing it. Check Windows Settings → System → Notifications → Vivaldi, and that Focus assist is off.
+- **"Failed: …"** — a real fault; the message says what.
+
+The same panel shows when the background check last ran, which separates "the tick never runs" from "the tick runs and decides nothing is due", plus the last notifier error if there was one.
+
 ## Configuration reference
 
 All settings live in the extension's Settings page.

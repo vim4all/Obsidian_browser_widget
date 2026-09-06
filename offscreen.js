@@ -1,23 +1,23 @@
-// The offscreen document is where the actual vault-reading + nag-firing
-// work happens — it's the one context reachable from background.js's alarm
-// tick that also has a DOM, which File System Access API calls need. It's
-// also, deliberately, where chrome.notifications.onClicked is handled: MV3
-// service workers get terminated after ~30s idle and only wake back up for
-// events they registered a listener for at the top level, which works fine
-// for chrome.alarms.onAlarm, but chrome.offscreen documents are simpler to
-// reason about here since they aren't torn down on the same idle timer —
-// keeping the click handler in the same place that creates the
-// notifications (both here) avoids having to hand off "which context owns
-// this notification's target URL" across the background/offscreen split.
+// The offscreen document is where vault reading happens — it's the one
+// context reachable from background.js's alarm tick that also has a DOM,
+// which File System Access API calls need.
+//
+// What it is NOT is a general-purpose extension page. An offscreen document
+// gets only a limited slice of the chrome.* APIs; chrome.notifications is
+// not part of that slice. An earlier version of this file created
+// notifications and registered chrome.notifications.onClicked here, and
+// both failed — silently, because runNotifiers' catch swallowed the
+// TypeError — so no nag ever fired. Anything needing an API beyond reading
+// the vault now goes to the service worker by message; see sendNotification
+// in src/notifications.js and the onMessage handler in background.js.
 //
 // vault.js / store.js / notifications.js are the same modules newtab.js and
-// popup.js import — the only thing specific to this file is the tick loop
-// and the notification-click plumbing.
+// popup.js import — the only thing specific to this file is the tick loop.
 
 import { loadConfig } from "./src/config.js"
 import { checkVaultAccess } from "./src/vaultAccess.js"
 import * as vault from "./src/vault.js"
-import { runNotifiers, consumeNotificationTarget } from "./src/notifications.js"
+import { runNotifiers } from "./src/notifications.js"
 import { runGuard, syncGuardFromNote } from "./src/distractionGuard.js"
 
 async function runTick() {
@@ -73,14 +73,9 @@ chrome.runtime.onMessage.addListener((message) => {
 // on startup instead of waiting a full schedulerIntervalSeconds.
 runTick()
 
-chrome.notifications.onClicked.addListener(async (notificationId) => {
-  const url = await consumeNotificationTarget(notificationId)
-  if (url) chrome.tabs.create({ url })
-  chrome.notifications.clear(notificationId)
-})
-
-// A notification dismissed without being clicked still leaves its target
-// URL in storage; clean it up either way so it doesn't accumulate.
-chrome.notifications.onClosed.addListener((notificationId) => {
-  consumeNotificationTarget(notificationId)
-})
+// The chrome.notifications listeners that used to live here have moved to
+// background.js. They never worked from this context: an offscreen document
+// is given only a limited slice of the extension APIs, and
+// chrome.notifications isn't in it, so registering them here threw at module
+// evaluation and creating notifications threw on every tick. This file now
+// only *decides* to notify; the service worker does the notifying.

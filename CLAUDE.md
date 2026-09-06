@@ -72,7 +72,7 @@ Same shape as the Windows app's `store.js` (`getTimestamp`/`setTimestamp`/`dateE
 
 Ported with the exact same hour windows, per-notifier rate limits, and `catchUpWindowHours` tolerance as both siblings — **this still matters here**: even though the background tick isn't subject to iOS's widget-refresh throttling the way the original script was, the browser can still be closed for hours and reopened, so the tolerance window stays. `runNotifiers()` preserves the same one-try/catch-per-notifier structure as both siblings — a throw from any single notifier must never skip the rest for that tick.
 
-This module also owns `chrome.notifications.create()` and the notification-click target map (`consumeNotificationTarget`) — see "Why offscreen.js owns notifications.onClicked" below for why that's here and not in `background.js`.
+This module decides *what* to notify and owns the notification-click target map (`consumeNotificationTarget`), but it does **not** call `chrome.notifications.create()` — `sendNotification()` posts a `NOTIFY_MESSAGE` to the service worker, which makes the call. See "The offscreen API ceiling" below.
 
 `maybeSendWeeklyReview()` also folds in a plan-review check (`vault.planStatus()`, gated on `config.planReviewEnabled`) when it fires — deliberately appended to this existing notification rather than added as a ninth independently-timed one, since the vault's own weekly ritual already reviews the plan note in the same sitting as the weekly/daily reports this notification already summarizes.
 
@@ -88,9 +88,22 @@ Owns exactly two things: the `chrome.alarms` tick (a durable timer that survives
 
 Loads config, calls `vaultAccess.checkVaultAccess()`, and if (and only if) that comes back `"granted"`, reads today's note and calls `notifications.runNotifiers()`. If it's not `"granted"`, the tick is a silent no-op — there is no way to re-prompt for permission from here (no window, no user gesture), so it just waits for the user to reconnect from a visible page.
 
-**Why `offscreen.js` (not `background.js`) owns `chrome.notifications.onClicked`:** both are technically reachable by the event, but keeping notification-creation and notification-click-handling in the same file means the two never have to coordinate the "which context currently owns this notification's target URL" question across a background/offscreen split — see the comment at the top of `offscreen.js` for the full reasoning. Notification target URLs are still persisted to `chrome.storage.local` (not just held in memory) via `notifications.js`'s `rememberTarget`/`consumeNotificationTarget`, specifically so a click still resolves correctly even if the offscreen document happened to be recreated between the notification firing and the click.
+### The offscreen API ceiling — read this before moving anything into `offscreen.js`
 
-The offscreen document is deliberately **not closed** after each tick — `chrome.offscreen` documents aren't subject to the service worker's ~30s idle-kill, so once created it's left running to also hold the `onClicked` listener and to avoid re-creating a document every ~`tickIntervalMinutes`. It only goes away when Vivaldi itself closes (browser restart), at which point `background.js`'s `onStartup` listener recreates it.
+**An offscreen document does not get the full `chrome.*` surface.** It has a DOM (which is the entire reason it exists — File System Access needs one) but only a limited slice of the extension APIs. `chrome.storage` and `chrome.runtime` work. `chrome.notifications`, `chrome.tabs`, and `chrome.declarativeNetRequest` **do not**.
+
+This repo shipped that mistake twice, and both times it failed silently:
+
+1. `offscreen.js` called `chrome.notifications.create()` and registered `chrome.notifications.onClicked`. Every nag threw `TypeError` into `runNotifiers`' catch — which was empty — so **no notification ever fired**, with no error anywhere.
+2. `distractionGuard.js`'s `applyGuardState`/`applyDeepWorkState` call `chrome.declarativeNetRequest` and `chrome.tabs`. Reached from the offscreen tick they threw too; the guard only appeared to work because `newtab.js`/`popup.js`/`options.js`/`blocked.js` call the same functions from real extension pages, which do have those APIs. The 5-minute background tick had never applied a rule.
+
+The fix in both cases is the same shape: the offscreen document *decides*, the service worker *acts*. `sendNotification()` posts `NOTIFY_MESSAGE`; `applyGuardState`/`applyDeepWorkState` check `canEnforce()` and post `GUARD_APPLY_MESSAGE`/`DEEP_WORK_APPLY_MESSAGE` when the APIs are missing. `background.js` handles all four and calls the real APIs. Calling back into the same guard functions from the worker does not loop — `canEnforce()` is true there, so they act directly.
+
+**When adding anything to the tick path, assume the API is unavailable in `offscreen.js` until proven otherwise, and never leave a bare `catch {}` around it.** The empty catch is what turned a total outage into an invisible one; `runNotifiers` now logs and records to `diag.lastNotifierError`, which `options.html` displays.
+
+`chrome.notifications.onClicked`/`onClosed` live in `background.js`. Target URLs are persisted to `chrome.storage.local` via `rememberTarget`/`consumeNotificationTarget` rather than held in memory, so a click still resolves after the service worker has been terminated and restarted — which it will have been, since a notification sits on screen far longer than the ~30s idle timeout. `rememberTarget` is awaited *before* the create message is sent, since a notification can be clicked the instant it appears.
+
+The offscreen document is deliberately **not closed** after each tick — `chrome.offscreen` documents aren't subject to the service worker's ~30s idle-kill, so once created it's left running to avoid re-creating a document every ~`tickIntervalMinutes`. It only goes away when Vivaldi itself closes (browser restart), at which point `background.js`'s `onStartup` listener recreates it.
 
 ### `src/distractionGuard.js` — the site blocker
 
